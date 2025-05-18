@@ -7,12 +7,15 @@ from bs4 import BeautifulSoup
 import time
 from PyPDF2 import PdfReader
 import docx2txt
+import tempfile
 
 # ----------- Google Sheets setup -----------
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name(
-    r"C:\Users\Frank\Downloads\frank (1)\eternal-unity-460214-p7-0c0081c14763.json",
-    scope)
+
+# Get the credentials dict directly from secrets (already a dict, no json.loads)
+creds_dict = st.secrets["gcp_service_account"]
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+
 client = gspread.authorize(creds)
 sheet = client.open("Career Risk Scores").sheet1
 
@@ -86,7 +89,10 @@ def extract_text_from_cv(uploaded_file):
                 text += page_text + "\n"
         return text.lower()
     elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        text = docx2txt.process(uploaded_file)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
+            tmp.write(uploaded_file.read())
+            tmp_path = tmp.name
+        text = docx2txt.process(tmp_path)
         return text.lower()
     else:
         return ""
@@ -161,7 +167,11 @@ else:
         if st.button("Submit"):
             if email and job_titles and cv_file and confirmed:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                sheet.append_row([timestamp, email, round(average_score, 2), risk_level, job_titles])
+                try:
+                    sheet.append_row([timestamp, email, round(average_score, 2), risk_level, job_titles])
+                except Exception as e:
+                    st.error(f"Failed to write to Google Sheets: {e}")
+                    st.stop()
 
                 job_title_list = [j.strip() for j in job_titles.split(",") if j.strip()]
                 job_descriptions = scrape_indeed_jobs(job_title_list)
@@ -174,4 +184,3 @@ else:
                     st.write(f"- **{jt}**: {score}% match")
             else:
                 st.warning("Please fill in all fields and agree to the subscription to continue.")
-
