@@ -1,5 +1,6 @@
 import streamlit as st
 import gspread
+import json  # ✅ Required to parse the string secret
 from datetime import datetime
 from oauth2client.service_account import ServiceAccountCredentials
 import requests
@@ -12,12 +13,13 @@ import tempfile
 # ----------- Google Sheets setup -----------
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-# Get the credentials dict directly from secrets (already a dict, no json.loads)
-creds_dict = st.secrets["gcp_service_account"]
+# ✅ Parse the service account string from secrets
+creds_dict = json.loads(st.secrets["gcp_service_account"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 
 client = gspread.authorize(creds)
 sheet = client.open("Career Risk Scores").sheet1
+
 
 # ----------- Questionnaire -----------
 questions = [
